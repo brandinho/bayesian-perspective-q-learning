@@ -1,0 +1,1201 @@
+<!--
+  Copyright 2018 The Distill Template Authors
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!doctype html>
+
+<head>
+  <script src="../dist/template.v2.js"></script>
+  <script src="https://unpkg.com/d3@5.14.2/dist/d3.min.js"></script>
+  <link href="https://use.fontawesome.com/releases/v5.0.1/css/all.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/button.css">
+  <link rel="stylesheet" href="css/slider.css">
+  <link rel="stylesheet" href="css/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" >
+  <meta charset="utf8">
+</head>
+
+<body>
+  <!-- <distill-header></distill-header> -->
+<d-front-matter>
+  <script id='distill-front-matter' type="text/json">{
+    "title": "A Bayesian Perspective on Q-Learning",
+    "description": "Can we use Q-value distributions to efficiently explore the state-action space?",
+    "published": "October 21, 2020",
+    "authors": [
+      {
+        "author":"Brandon Da Silva",
+        "authorURL":"https://brandinho.github.io/",
+        "affiliations": [{"name": "OPTrust", "url": "https://www.optrust.com"}]
+      }
+    ],
+    "katex": {
+      "delimiters": [
+        {"left": "$$", "right": "$$", "display": false}
+      ]
+    }
+  }</script>
+</d-front-matter>
+
+
+<d-title style="overflow: hidden; padding-bottom: 0">
+  <p>
+    Can we use Q-value distributions to efficiently explore the state-action space?
+  </p>
+
+  <figure class="l-screen shaded-figure">
+      <div class="boxed">
+        <input type="radio" id="qvalues" name="game-color-scenarios" value="qvalues" checked>
+        <label for="qvalues">Show Q-Values</label>
+        <input type="radio" id="rewards" name="game-color-scenarios" value="rewards">
+        <label for="rewards">Show Rewards</label>
+      </div>
+
+      <div class="radio-button-container" style="justify-content: center; margin-top: 10px">
+        <input type="radio" class="option-input radio" name="game-explore-exploit" value="explore" checked> Explore
+        <input type="radio" class="option-input radio" name="game-explore-exploit" value="exploit"> Exploit
+      </div>
+
+      <div id="containerGame"></div>
+      <div id="gameLegendBottom" class="plot-legend"></div>
+      <div id="gameLegendColorLabel">$$$$</div>
+      <div id="gameLegendColor"></div>
+
+      <label for="barEpisodesGame">Episode = <span></span></label><br>
+      <div id="gameControls">
+        <div class="control-items" id="playButton"></div>
+
+        <div class="middle control-items">
+          <div class="slider-container">
+            <span id="barEpisodesGame" class="bar"><span id="fillEpisodesGame" class="fill"></span></span>
+            <input type="range" id="sliderEpisodesGame" class="slider" min="1" max="5000" value="5000" step="1">
+          </div>
+        </div>
+      </div>
+      <div class="figcaption">
+        The agent is pretrained and all of its progress is stored. Use the slider to choose the learned Q-values as of
+        that episode in training. After a couple hundred episodes, the agent learns the optimal policy with <b>certainty</b>,
+        which reduces exploration significantly.
+        The full Q-value distributions for each state can be seen <a href="#section-4.2">here</a>.
+      </div>
+  </figure>
+
+</d-title>
+<!-- <d-byline></d-byline> -->
+
+
+<d-article>
+  <d-contents>
+    <nav class="l-text toc figcaption">
+      <h3>Contents</h3>
+      <div><a href="#section-1">When Are Q-Values Normally Distributed?</a></div>
+      <div><a href="#section-2">Bayesian Interpretation</a></div>
+      <div><a href="#section-3">Exploration</a></div>
+      <div><a href="#section-4">Applying Bayes' Rule</a></div>
+      <div><a href="#discussion">Discussion</a></div>
+      <div><a href="#section-5">Related Work</a></div>
+    </nav>
+  </d-contents>
+
+  <p>
+    Recent work by Dabney et al. suggests that the brain represents reward predictions as probability distributions
+    <d-footnote>
+      Experiments were conducted on mice using single-unit recordings from the ventral tegmental area.
+    </d-footnote><d-cite key="dabney2020distribtionmice"></d-cite>.
+    This contrasts against the widely adopted approach in reinforcement learning (RL) of modelling single scalar
+    quantities (expected values).
+    In fact, by using distributions we are able to quantify uncertainty in the decision-making process.
+    Uncertainty is especially important in domains where making a mistake can result in the inability to recover
+    <d-footnote>
+      Examples of such domains include autonomous vehicles, healthcare, and the financial markets.
+    </d-footnote>. Research in risk-aware reinforcement learning has emerged to address such problems
+    <d-cite key="morimura2010risksensitive, chow2018riskconstrainedrl"></d-cite>.
+    However, another important application of uncertainty, which we focus on in this paper, is efficient exploration
+    of the state-action space.
+  </p>
+
+  <h2>Introduction</h2>
+
+  <p>
+    The purpose of this paper is to clearly explain Q-Learning from the perspective of a Bayesian.
+    As such, we use a small grid world and a simple extension of tabular Q-Learning to illustrate the fundamentals.
+    Specifically, we show how to extend the deterministic Q-Learning algorithm to model
+    the variance of Q-values with Bayes' rule. We focus on a sub-class of problems where it is reasonable to assume that Q-values
+    are normally distributed
+    and derive insights when this assumption holds true. Lastly, we demonstrate that applying Bayes' rule to update
+    Q-values comes with a challenge: it is vulnerable to early exploitation of suboptimal policies.
+  </p>
+
+  <p>
+    This paper is largely based on the seminal work from Dearden et al. <d-cite key="dearden1998bayesianqlearning"></d-cite>.
+    Specifically, we expand on the assumption that Q-values are normally distributed and evaluate various Bayesian exploration
+    policies. One key distinction is that we model $$\mu$$ and $$\sigma^2$$, while the
+    authors of the original Bayesian Q-Learning paper model a distribution over these parameters. This allows them to quantify
+    uncertainty in their parameters as well as the expected return - we only focus on the latter.
+  </p>
+
+  <div class="collapsible"><h4>Epistemic vs Aleatoric Uncertainty</h4><div class="collapsible-indicator"></div></div>
+  <div class="content">
+    Since Dearden et al. model a distribution over the parameters, they can sample from this distribution and the resulting
+    dispersion in Q-values is known as <b>epistemic</b> uncertainty. Essentially, this uncertainty is representative of the
+    "knowledge gap" that results from limited data (i.e. limited observations). If we close this gap, then we are left with
+    irreducible uncertainty (i.e. inherent randomness in the environment), which is known as <b>aleatoric</b> uncertainty
+    <d-cite key = "kiureghian2007aleatoric"></d-cite>.
+
+    <br><br>
+    One can argue that the line between epistemic and aleatoric uncertainty is rather blurry. The information that
+    you feed into your model will determine how much uncertainty can be reduced. The more information you incorporate about
+    the underlying mechanics of how the environment operates (i.e. more features), the less aleatoric uncertainty there will be.
+
+    <br><br>
+
+    It is important to note that inductive bias also plays an important role in determining what is categorized as
+    epistemic vs aleatoric uncertainty for your model.
+    <br><br>
+
+    <b>Important Note about Our Simplified Approach:</b>
+    <br><br>
+
+    Since we only use $$\sigma^2$$ to represent uncertainty, our approach does not distinguish between epistemic and aleatoric uncertainty.
+
+    Given enough interactions, the agent will close the knowledge gap and $$\sigma^2$$ will only represent aleatoric uncertainty. However, the agent still
+    uses this uncertainty to explore.
+
+    This is problematic because the whole point of exploration is to gain
+    knowledge, which indicates that we should only explore using epistemic uncertainty.
+    <br><br>
+  </div>
+
+
+  <br>
+
+  <p>
+    Since we are modelling $$\mu$$ and $$\sigma^2$$, we begin by evaluating the conditions under which it is appropriate
+    to assume Q-values are normally distributed.
+  </p>
+
+  <a class="marker" href="#section-1" id="section-1"></a>
+  <h2>When Are Q-Values Normally Distributed?</h2>
+
+  <p>
+    The readers who are familiar with Q-Learning can skip over the collapsible box below.
+  </p>
+
+  <div class="collapsible"><h4>Temporal Difference Learning</h4><div class="collapsible-indicator"></div></div>
+  <div class="content">
+    <p>
+      Temporal Difference (TD) learning is the dominant paradigm used to learn value functions in reinforcement learning
+      <d-cite key="sutton1988tempdiff"></d-cite>.
+      Below we will quickly summarize a TD learning algorithm for Q-values,
+      which is called Q-Learning. First, we will write Q-values as follows <d-cite key="Sutton2017ReinforcementIntroduction"></d-cite>:
+    </p>
+
+    <d-math block>
+      \overbrace{Q_\pi(s,a)}^\text{current Q-value} =
+      \overbrace{R_s^a}^\text{expected reward for (s,a)} +
+      \overbrace{\gamma Q_\pi(s^{\prime},a^{\prime})}^\text{discounted Q-value at next timestep}
+    </d-math>
+
+    <p>
+      We will precisely define Q-value as the expected value of the total return from taking action $$a$$ in state $$s$$ and following
+      policy $$\pi$$ thereafter. The part about $$\pi$$ is important because the agent's view on how good an action is
+      depends on the actions it will take in subsequent states. We will discuss this further when analyzing our agent in
+      the game environment.
+    </p>
+
+    <p>
+      For the Q-Learning algorithm, we sample a reward $$r$$ from the environment, and estimate the Q-value for the current
+      state-action pair $$q(s,a)$$ and the next state-action pair $$q(s^{\prime},a^{\prime})$$
+      <d-footnote>
+        For Q-Learning, the next action $$a^{\prime}$$ is the action with the largest Q-value in that state:
+        $$\max_{a^{\prime}} q(s^{\prime}, a^{\prime})$$.
+      </d-footnote>. We can represent the sample as:
+    </p>
+
+    <d-math block>
+      q(s,a) = r + \gamma q{(s^\prime,a^\prime)}
+    </d-math>
+
+    <p>
+      The important thing to realize is that the left side of the equation is an estimate (current Q-value), and the right side
+      of the equation is a combination of information gathered from the environment (the sampled reward) and another estimate
+      (next Q-value). Since the right side of the equation contains more information about the true Q-value than the left side,
+      we want to move the value of the left side closer to that of the right side. We accomplish this by minimizing the squared
+      Temporal Difference error ($$\delta^2_{TD}$$), where $$\delta_{TD}$$ is defined as:
+    </p>
+
+    <d-math block>
+      \delta_{TD} = r + \gamma q(s^\prime,a^\prime) - q(s,a)
+    </d-math>
+
+    <p>
+      The way we do this in a tabular environment, where $$\alpha$$ is the learning rate, is with the following update rule:
+    </p>
+
+    <d-math block>
+      q(s,a) \leftarrow \alpha(r_{t+1} + \gamma q(s^\prime,a^\prime)) + (1 - \alpha) q(s,a)
+    </d-math>
+
+    <p>
+      Updating in this manner is called bootstrapping because we are using one Q-value to update another Q-value.
+    </p>
+  </div>
+
+  <br>
+
+  <p>
+    We will use the Central Limit Theorem (CLT) as the foundation to understand when Q-values are normally
+    distributed. Since Q-values are sample sums, then they should look more and more normally distributed as the sample size
+    increases <d-cite key="lecam1986clt"></d-cite>.
+    However, the first nuance that we will point out is that rewards must be sampled from distributions with finite variance.
+    Thus, if rewards are sampled distributions such as Cauchy or L&eacutevy, then we cannot assume Q-values are normally distributed.
+  </p>
+
+  <aside>
+    In RL, sample size corresponds to the number of timesteps.
+  </aside>
+
+  <p>
+    Otherwise, Q-values are approximately normally distributed when the number of <b><i>effective timesteps</i></b>
+    $$\widetilde{N}$$ is large
+    <d-footnote>
+      We can think of effective timesteps as the number of <b>full</b> samples.
+    </d-footnote>.
+    This metric is comprised of three factors:
+  </p>
+
+  <ul>
+    <li>
+      $$N$$ - <b>Number of timesteps</b>: As $$N$$ increases, so does $$\widetilde{N}$$.
+    </li>
+
+    <li>
+      $$\xi$$ - <b>Sparsity</b>: We define sparsity as the number of timesteps,
+      on average, a reward of zero is deterministically received in between receiving non-zero rewards
+      <d-footnote>
+        In the Google Colab notebook, we ran simulations to show that $$\xi$$ reduces the effective number of timesteps by $$\frac{1}{\xi + 1}$$:
+        <a style="width: max-content; margin: auto" href="https://colab.research.google.com/github/brandinho/Baysian-Q-Learning/blob/master/Sparsity.ipynb" class="colab-root">
+          Experiment in a <span class="colab-span">Notebook</span>
+        </a>
+      </d-footnote>.
+      When sparsity is present, we lose samples (since they are always zero).
+      <!-- As sparsity increases, we essentially lose samples since they are always zero. -->
+      Therefore, as $$\xi$$ increases, $$\widetilde{N}$$ decreases.
+    </li>
+
+    <li>
+      $$\gamma$$ - <b>Discount Factor</b>:
+      As $$\gamma$$ gets smaller, the agent places more weight on immediate rewards relative to distant ones, which means
+      that we cannot treat distant rewards as full samples. Therefore, as $$\gamma$$ increases, so does $$\widetilde{N}$$.
+    </li>
+
+    <div class="collapsible"><h4>Discount Factor and Mixture Distributions</h4><div class="collapsible-indicator"></div></div>
+    <div class="content">
+      <p>
+        We will define the total return as the sum of discounted future
+        rewards, where the discount factor $$\gamma$$ can take on any value between $$0$$ (myopic) and $$1$$ (far-sighted).
+        It helps to think of the resulting distribution $$G_t$$ as a weighted mixture distribution.
+      </p>
+
+      <d-math block>
+        G_t = r_{t+1} + \gamma r_{t+2} + \gamma^2 r_{t+3} + ... + \gamma^{N-1} r_{t+N}
+      </d-math>
+
+      <p>
+        When we set $$\gamma \lt 1$$, the mixture weights for the underlying distributions change from equal weight
+        to time-weighted, where immediate timesteps have a higher weight. When $$\gamma = 0$$, then this is
+        equivalent to sampling from only one timestep and CLT would not hold. Use the slider
+        to see the effect $$\gamma$$ has on the mixture weights, and ultimately the mixture distribution.
+      </p>
+
+      <div class="mixture-model-container">
+        <div class="mixture-model-labels">
+          <div class="individual-mixture-label" id="mixture-label1">
+              $$$$<br>
+              $$$$
+          </div>
+          <div class="empty-space"></div>
+
+          <div class="individual-mixture-label" id="mixture-label2">
+              $$$$<br>
+              $$$$
+          </div>
+          <div class="empty-space"></div>
+
+          <div class="individual-mixture-label" id="mixture-label3">
+              $$$$<br>
+              $$$$
+          </div>
+
+          <div class="empty-space"></div>
+          <div class="individual-mixture-label"></div>
+        </div>
+
+        <div class="mixture-model">
+          <div class="individual-mixture" id="mixture-dist1"></div>
+          <div class="mixture-operation">+</div>
+          <div class="individual-mixture" id="mixture-dist2"></div>
+          <div class="mixture-operation">+</div>
+          <div class="individual-mixture" id="mixture-dist3"></div>
+          <div class="mixture-operation">=</div>
+          <div class="individual-mixture" id="mixture"></div>
+        </div>
+      </div>
+
+      <label for="barGammaMixture">$$\gamma$$ = <span></span></label><br>
+      <div class="middle">
+        <div class="slider-container">
+          <span id="barGammaMixture" class="bar"><span id="fillGammaMixture" class="fill"></span></span>
+          <input type="range" id="sliderGammaMixture" class="slider" min="0" max="1" value="0.05" step="0.01">
+        </div>
+      </div>
+    </div>
+  </ul>
+
+  We combine the factors above to formally define the number of effective timesteps:
+
+  <d-math block>
+    \widetilde{N} = \frac{1}{\xi + 1}\sum_{i=0}^{N-1}\gamma^{i}
+  </d-math>
+
+  <p>
+    Below we visually demonstrate how each factor affects the normality of Q-values
+    <d-footnote>
+      We scale the Q-values by $$\widetilde{N}$$ because otherwise the distribution of Q-values
+      moves farther and farther to the right as the number of effective timesteps increases, which distorts the visual.
+    </d-footnote>:
+  </p>
+
+  <div class="boxed">
+    <input type="radio" id="skew" name="distribution-type" value="skew" checked>
+    <label for="skew">Skew-Normal</label>
+    <input type="radio" id="bernoulli" name="distribution-type" value="bernoulli">
+    <label for="bernoulli">Bernoulli</label>
+  </div>
+
+  <div class="row">
+    <div class="column" id="QDistribution"></div>
+    <div class="column" id="EffectiveSampleSize"></div>
+    <div class="plot-legend" id="QDistributionLegend"></div>
+  </div>
+
+  <aside>
+    Excessive sparsity, coupled with a low discount rate or low number of timesteps, will result in a Dirac delta
+    function when all rewards the agent considers are 0.
+  </aside>
+
+  <figcaption>
+    Select whether the underlying distribution follows a skew-normal or a Bernoulli distribution.
+    In the Google Colab notebook we also include three statistical tests of normality for the Q-value distribution.
+    <br><br>
+  </figcaption>
+  <a style="width: max-content; margin: auto" href="https://colab.research.google.com/github/brandinho/Baysian-Q-Learning/blob/master/QValueNormal.ipynb" class="colab-root">
+    Experiment in a <span class="colab-span">Notebook</span>
+  </a>
+
+  <br>
+
+  <div class="QDistribution-slider-container">
+    <div class="middle">
+      <label for="barSizeQDistribution">$$N$$ = <span></span></label><br>
+      <div class="slider-container">
+        <span id="barSizeQDistribution" class="bar"><span id="fillSizeQDistribution" class="fill"></span></span>
+        <input type="range" id="sliderSizeQDistribution" class="slider" min="1" max="100" value="30" step="1">
+      </div>
+    </div>
+
+    <div class="middle">
+      <label for="barGammaQDistribution">$$\gamma$$ = <span></span></label><br>
+      <div class="slider-container">
+        <span id="barGammaQDistribution" class="bar"><span id="fillGammaQDistribution" class="fill"></span></span>
+        <input type="range" id="sliderGammaQDistribution" class="slider" min="0" max="1" value="0.8" step="0.01">
+      </div>
+    </div>
+
+    <div class="middle">
+      <label for="barSparsityQDistribution">$$\xi$$ = <span></span></label><br>
+      <div class="slider-container">
+        <span id="barSparsityQDistribution" class="bar"><span id="fillSparsityQDistribution" class="fill"></span></span>
+        <input type="range" id="sliderSparsityQDistribution" class="slider" min="1" max="30" value="1" step="1">
+      </div>
+    </div>
+  </div>
+
+  <p>
+    There is a caveat in the visual analysis above for environments that have a terminal state. As the agent moves closer
+    to the terminal state, then $$N$$ will progressively get smaller and Q-values will look less normally distributed.
+    Nonetheless, it is reasonable to assume that Q-values are approximately normally distributed for most
+    states in <b>dense</b> reward environments if we use a large $$\gamma$$.
+  </p>
+
+  <a class="marker" href="#section-2" id="section-2"></a>
+  <h2>Bayesian Interpretation</h2>
+
+  <p>
+    We preface this section by noting that the following interpretations are
+    only theoretically justified when we assume Q-values are normally distributed. We begin by defining the general
+    update rule using Bayes' Theorem:
+  </p>
+
+  <d-math block>
+    \text{posterior} \propto \text{likelihood} \times \text{prior}
+  </d-math>
+
+  <p>
+    When using Gaussians, we have an analytical solution for the posterior
+    <d-footnote>
+      A Gaussian is conjugate to itself, which simplifies the Bayesian updating
+      process significantly; instead of computing integrals for the posterior, we have closed-form expressions
+      <d-cite key="wetherill1961conjugate"></d-cite>.
+    </d-footnote>:
+  </p>
+
+  <d-math block>
+    \mu  = \frac{\sigma^2_1}{\sigma^2_1 + \sigma^2_2}\mu_2 + \frac{\sigma^2_2}{\sigma^2_1 + \sigma^2_2}\mu_1
+  </d-math>
+  <d-math block>
+    \sigma^2 = \frac{\sigma^2_1\sigma^2_2}{\sigma^2_1 + \sigma^2_2}
+  </d-math>
+
+  <p>
+    By looking at a color-coded comparison, we can see that deterministic Q-Learning is equivalent to updating the mean
+    using Bayes' rule:
+  </p>
+
+  <d-math block>
+    \begin{aligned}
+      &\color{green}\mu&
+      &\color{black}=&
+      &\color{orange}\frac{\sigma^2_1}{\sigma^2_1 + \sigma^2_2}&
+      &\color{red}\mu_2&
+      &\color{black}+&
+      &\color{purple}\frac{\sigma^2_2}{\sigma^2_1 + \sigma^2_2}&
+      &\color{blue}\mu_1&
+
+      \\ \\
+
+      &\color{green}q(s,a)&
+      &\color{black}=&
+      &\color{orange}\alpha&
+      &\color{red}(r_{t+1} + \gamma q(s^\prime,a^\prime))&
+      &\color{black}+&
+      &\color{purple}(1 - \alpha)&
+      &\color{blue}q(s,a)&
+    \end{aligned}
+  </d-math>
+
+  <p>
+    What does this tell us about the deterministic implementation of Q-Learning, where $$\alpha$$ is a hyperparameter?
+    Since we don't model the variance of Q-values in deterministic Q-Learning, $$\alpha$$ does not <b>explicitly</b> depend
+    on the certainty in Q-values. Instead, we can interpret $$\alpha$$ as being the ratio of how <b>implicitly</b> certain
+    the agent is in its prior, $$q(s,a)$$, relative to the likelihood, $$r + \gamma q(s^\prime,a^\prime)$$
+    <d-footnote>
+      Our measurement is $$r + \gamma q(s^\prime,a^\prime)$$ since $$r$$ is information given to us directly from the
+      environment. We represent our likelihood as the distribution over this measurement:
+      $$\mathcal{N}\left(\mu_{r + \gamma q(s^\prime,a^\prime)}, \sigma^2_{r + \gamma q(s^\prime,a^\prime)}\right)$$.
+    </d-footnote>.
+    For deterministic Q-Learning, this ratio is generally constant and the uncertainty in $$q(s,a)$$ does not change
+    as we get more information.
+  </p>
+
+  <p>
+    What happens "under the hood" if we keep $$\alpha$$ constant?
+    Right before the posterior from the previous
+    timestep becomes the prior for the current timestep, we increase the variance
+    by $$\sigma^2_{\text{prior}_{(t-1)}} * \alpha$$
+
+    <d-footnote>
+      When $$\alpha$$ is held constant, the variance of the prior implicitly undergoes the following transformation:
+      $$\sigma^2_{\text{prior}_{(t)}} = \sigma^2_{\text{posterior}_{(t-1)}} + \sigma^2_{\text{prior}_{(t-1)}} * \alpha$$.
+
+      <br><br>
+      <u><b>Derivation</b></u>
+      <br>
+      Let us first state that $$\alpha = \frac{\sigma^2_\text{prior}}{\sigma^2_\text{prior} + \sigma^2_\text{likelihood}}$$, which can be deduced
+      from the color-coded comparison in the main text.
+      <br>
+
+      Given the update rule
+
+      $$
+      \sigma^2_{\text{posterior}_{(t)}} = \frac{\sigma^2_{\text{prior}_{(t)}} \times \sigma^2_{\text{likelihood}_{(t)}}}{\sigma^2_{\text{prior}_{(t)}} + \sigma^2_{\text{likelihood}_{(t)}}}
+      $$, we know that $$\sigma^2_{\text{posterior}_{(t)}} \lt \sigma^2_{\text{prior}_{(t)}}$$
+
+      <br>
+
+      We also know that the update rule works in such a way that $$\sigma^2_{\text{prior}_{(t)}} = \sigma^2_{\text{posterior}_{(t-1)}}$$
+
+      <br>
+
+      Therefore, we can state that $$\sigma^2_{\text{prior}_{(t)}} \lt \sigma^2_{\text{prior}_{(t-1)}}$$ if we assume
+      $$\sigma^2_\text{likelihood}$$ does not change over time. This means that $$\alpha_{(t)} \neq \alpha_{(t-1)}$$
+
+      <br>
+
+      In order to make $$\alpha_{(t)} = \alpha_{(t-1)}$$, we need to increase $$\sigma^2_{\text{posterior}_{(t-1)}}$$
+      before it becomes $$\sigma^2_{\text{prior}_{(t)}}$$. We solve for this amount below:
+
+      <br><br>
+
+      $$
+      \begin{aligned}
+        \sigma^2_{\text{posterior}_{(t-1)}} + X &= \sigma^2_{\text{prior}_{(t-1)}} \\
+        \frac{\sigma^2_{\text{prior}_{(t-1)}} \times \sigma^2_\text{likelihood}}{\sigma^2_{\text{prior}_{(t-1)}} + \sigma^2_{likelihood}} + X &= \sigma^2_{\text{prior}_{(t-1)}} \\
+        X &= \sigma^2_{\text{prior}_{(t-1)}} \left(1 - \frac{\sigma^2_\text{likelihood}}{\sigma^2_{\text{prior}_{(t-1)}} + \sigma^2_\text{likelihood}} \right) \\
+        X &= \sigma^2_{\text{prior}_{(t-1)}} * \alpha
+      \end{aligned}
+      $$
+    </d-footnote>.
+
+    This keeps the uncertainty ratio between the likelihood and the prior constant
+    <d-footnote>
+      An alternative interpretation is that the variance for the prior and likelihood are both decreasing in such a way
+      that keeps the ratio between them constant. However, we do not think it is reasonable to assume
+      that the variance of the sampled reward would constantly decrease as the agent becomes more certain in its prior.
+    </d-footnote>.
+
+    Below we visualize this interpretation by comparing the "regular" Bayesian update to the constant $$\alpha$$ update:
+  </p>
+
+  <aside>
+    For each update using Bayes' rule, we use the most recently calculated posterior as our new prior.
+  </aside>
+
+  <div class="row">
+      <figure>
+        <div class="column" id="bayesian-alpha-plot"></div>
+        <div class="column" id="constant-alpha-plot"></div>
+        <div class="plot-legend" id="constantAlphaLegend"></div>
+      </figure>
+  </div>
+
+  <figure>
+    <figcaption>
+      Click the right arrow to calculate the posterior given the prior and likelihood. Click the right arrow a second
+      time to see the previous posterior transform into the new prior for the next posterior update.
+      Use the slider to select different values for the starting $$\alpha$$.
+      <b>NOTE: Larger starting values of $$\alpha$$ make the distinction visually clear.</b>
+    </figcaption>
+  </figure>
+
+  <div class="button-container">
+    <div class="probability-button" id="next-button"></div>
+    <div class="probability-button" id="refresh-button"></div>
+  </div>
+
+  <label for="barAlpha">Starting $$\alpha$$ = <span></span></label><br>
+  <div class="middle">
+    <div class="slider-container">
+      <span id="barAlpha" class="bar"><span id="fillAlpha" class="fill"></span></span>
+      <input type="range" id="sliderAlpha" class="slider" min="0.1" max="0.5" value="0.35" step="0.01">
+    </div>
+  </div>
+
+  <p>
+    Now that we know what happens under the hood when we hold $$\alpha$$ constant, it is worth noting that not everyone
+    holds it constant.
+    In practice, researchers also decay $$\alpha$$ for the agent to rely less on new information (implicitly becoming more
+    certain) for each subsequent timestep <d-cite key="dar2003learningrates,azar2011speedyqlearning"></d-cite>.
+    Although deterministic Q-Learning largely depends on heuristics to create a decay schedule, Bayesian Q-Learning has
+    it built in:
+  </p>
+
+  <d-math block>
+    \alpha = \frac{\sigma^2_{q(s,a)}}{\sigma^2_{q(s,a)} + \sigma^2_{r + \gamma q(s^\prime,a^\prime)}}
+  </d-math>
+
+  <p>
+    As our agent updates its belief about the world it will naturally create
+    a decay schedule that corresponds to how certain it is in its prior. As uncertainty decreases, so does the learning rate.
+    Note that the learning rate is bespoke for each state-action pair because it is possible to
+    become more confident in specific state-action pairs faster than others
+    <d-footnote>
+      Some reasons include visiting those state-action pairs more often than others, or simply because they are inherently less noisy.
+    </d-footnote>.
+  </p>
+
+  <a class="marker" href="#section-3" id="section-3"></a>
+  <h2>Exploration</h2>
+
+  <a class="marker" href="#section-3.1" id="section-3.1"></a>
+  <h3>Exploration Policies</h3>
+
+  <p>
+    There are many ways we can use a distribution over Q-values to explore as an alternative to the $$\varepsilon$$-greedy
+    approach. Below we outline a few, and evaluate each in the <a href="#discussion">final section</a> of this paper.
+  </p>
+
+  <ul>
+    <li>
+      <b>Epsilon-Greedy:</b> We set $$\varepsilon$$ as a hyperparameter. It represents the probability of selecting a
+      random action (i.e. deviating from selecting the action with the highest Q-value).
+    </li>
+    <li>
+      <b>Bayes-UCB:</b>
+        We select the actions with the largest right tails, using some
+        confidence interval (we use 95% in our analysis)
+        <d-footnote>
+          Since we model Q-value distributions as Gaussians, to calculate the 95% confidence interval we use
+          $$\mu_{q(s,a)} + \sigma_{q(s,a)} \times 2$$.
+        </d-footnote>
+        <d-cite key="kaufmann2012bayesucb"></d-cite>. Essentially, we are selecting the action that has
+        the highest potential Q-value
+        <d-footnote>
+          There is also a deterministic implementation of Upper Confidence Bound, where the bonus is a function of the
+          number of timesteps that have passed as well as the number of times the agent has visited a specific state-action
+          pair
+          <d-cite key="leung1987ucb"></d-cite>.
+        </d-footnote>.
+    </li>
+    <li>
+      <b>Q-Value Sampling:</b> We sample from the Q-value distributions and choose the action
+      with the largest sampled Q-value. This form of exploration is known as Q-value sampling in the case of Q-Learning
+      <d-cite key = "dearden1998bayesianqlearning, wyatt1997qsampling"></d-cite>
+      and Thompson sampling in the general case <d-cite key = "thompson1933sampling"></d-cite>.
+    </li>
+    <li>
+      <b>Myopic-VPI:</b> We quantify a myopic view of policy improvement with <i>value of perfect information</i> (VPI)
+      <d-footnote>
+        $$\text{VPI}(s,a) = \int^\infty_{-\infty}\text{Gain}_{s,a}(x)Pr(\mu_{s,a} = x)dx$$, which can be intuitively
+        described as the expected improvement over the current best action.
+      </d-footnote>. It is "myopic" because it only considers the improvement for the current timestep.
+      We select the action that maximizes $$\mu_{s,a} + \text{VPI}(s,a)$$.
+    </li>
+  </ul>
+
+  <p>
+    Below we visualize the different exploration policies in action:
+  </p>
+
+  <div class="row">
+      <figure>
+          <div class="column" id="exploration-policy-one-plot"></div>
+          <div class="column" id="exploration-policy-two-plot"></div>
+      </figure>
+  </div>
+
+  <div class="row" id="exploration-policy-main-container">
+    <select class="select-css" id="exploration-policy-one-dropdown">
+    	<option value="epsilon-greedy" selected>Epsilon-Greedy</option>
+    	<option value="thompson-sampling">Q-Value Sampling</option>
+    	<option value="myopic-vpi">Myopic-VPI</option>
+    </select>
+
+    <div id="sampleButton"></div>
+
+    <select class="select-css" id="exploration-policy-two-dropdown">
+      <option value="upper-confidence-bound" selected>Bayes-UCB</option>
+    	<option value="thompson-sampling">Q-Value Sampling</option>
+    	<option value="myopic-vpi">Myopic-VPI</option>
+    </select>
+  </div>
+
+  <figure>
+    <figcaption style="margin-top: 10px">
+      The circles represent the evaluation criteria for the agent's actions. The agent chooses the action with the circle
+      that is farthest to the right. For epsilon-greedy, we use $$\varepsilon = 0.1$$. The "sample" button only appears for
+      stochastic exploration policies.
+    </figcaption>
+  </figure>
+
+
+  <div class="button-container">
+    <!-- Put the "Sample" button here -->
+  </div>
+
+  <div class="exploration-policy-slider-container">
+    <div class="middle">
+      <label for="barExplorationPolicyMu1"">$$\color{#24B3A8}\mu_1$$ = <span></span></label><br>
+      <div class="slider-container">
+        <span id="barExplorationPolicyMu1" class="bar"><span id="fillExplorationPolicyMu1" class="fill"></span></span>
+        <input type="range" id="sliderExplorationPolicyMu1" class="slider" min="-5" max="5" value="0" step="0.1">
+      </div>
+    </div>
+    <div class="middle">
+      <label for="barExplorationPolicySigma1">$$\color{#24B3A8}\sigma^2_1$$ = <span></span></label><br>
+      <div class="slider-container">
+        <span id="barExplorationPolicySigma1" class="bar"><span id="fillExplorationPolicySigma1" class="fill"></span></span>
+        <input type="range" id="sliderExplorationPolicySigma1" class="slider" min="1" max="5" value="3" step="0.1">
+      </div>
+    </div>
+
+    <div class="middle">
+      <label for="barExplorationPolicyMu2">$$\color{#f29d5c}\mu_2$$ = <span></span></label><br>
+      <div class="slider-container">
+        <span id="barExplorationPolicyMu2" class="bar"><span id="fillExplorationPolicyMu2" class="fill"></span></span>
+        <input type="range" id="sliderExplorationPolicyMu2" class="slider" min="-5" max="5" value="3" step="0.1">
+      </div>
+    </div>
+    <div class="middle">
+      <label for="barExplorationPolicySigma2">$$\color{#f29d5c}\sigma^2_2$$ = <span></span></label><br>
+      <div class="slider-container">
+        <span id="barExplorationPolicySigma2" class="bar"><span id="fillExplorationPolicySigma2" class="fill"></span></span>
+        <input type="range" id="sliderExplorationPolicySigma2" class="slider" min="1" max="5" value="1" step="0.1">
+      </div>
+    </div>
+
+
+  </div>
+
+  <p>
+    By interacting with the visual above, one might wonder if we can infer what the "exploration parameter" is for the
+    other stochastic policy, Q-value sampling, which does not explicitly define $$\varepsilon$$.
+    We explore this question in the next section.
+  </p>
+
+
+
+  <a class="marker" href="#section-3.2" id="section-3.2"></a>
+  <h3>Implicit $$\varepsilon$$</h3>
+
+  <p>
+    In contrast to deterministic Q-Learning, where we explicitly define $$\varepsilon$$ as the exploration hyperparameter,
+    when we use Q-value sampling there is an implicit epsilon $$\hat{\varepsilon}$$.
+    Before defining $$\hat{\varepsilon}$$, we will get some
+    notation out of the way. Let's define two probability distributions, $$x_1 \sim \mathcal{N}(\mu_1, \sigma^2_1)$$ and
+    $$x_2 \sim \mathcal{N}(\mu_2, \sigma^2_2)$$. To calculate the probability that we sample a value $$x_1 \gt x_2$$, we
+    can use the following equation, where $$\Phi$$ represents the cumulative distribution function
+    <d-cite key="probsampleabove"></d-cite>:
+  </p>
+
+  <d-math block>
+    \begin{aligned}
+      &\mu    = \mu_1 - \mu_2 \\
+      &\sigma = \sqrt{\sigma^2_1 + \sigma^2_2} \\
+      &Pr(x_1 \gt x_2) = 1 - \Phi\left(\frac{-\mu}{\sigma}\right)
+    \end{aligned}
+  </d-math>
+
+  <p>
+    With this equation, we can now calculate the probability of sampling
+    a larger Q-value for a reference action $$\hat{a}$$ relative to another action.
+    If we do this for each action that an agent can make (excluding the reference action)
+    and calculate the joint probability, then
+    we get the probability that the sampled Q-value for $$\hat{a}$$ is larger than all other actions
+    <d-footnote>
+      In a given state, the Q-value for one action should be independent of the other Q-values in that state.
+      This is because you can only take one action at a time, and we generally apply
+      Q-learning to MDPs, where the Markov property holds (i.e. history does not matter).
+      Thus, to calculate the joint probability, it is simply a multiplication of the marginal probabilities.
+    </d-footnote>:
+  </p>
+
+
+  <d-math block>
+    \bar{P}_{\hat{a}} = \prod_{a}^{\mathcal{A}}Pr(x_{\hat{a}} \gt x_a), \quad \text{for} \,\, a \neq \hat{a}
+  </d-math>
+
+  <p>
+    We then find the action with the largest $$\bar{P}_{a}$$ because that is the action that we would select if we were not
+    exploring
+    <d-footnote>
+      Since we're using normal distributions, $$\text{arg}\max{\bar{P}_{a}}$$ happens to correspond to the Q-value with the largest mean.
+    </d-footnote>.
+  </p>
+
+  <d-math block>
+    a_{max} = \text{arg}\max{\bar{P}_{a}}, \quad \forall \,\, a \in \mathcal{A}
+  </d-math>
+
+  <p>
+    Then, if we sum up the probabilities of sampling the largest Q-value, for all actions except the exploitation action,
+    then we get the probability that we will explore:
+  </p>
+
+  <d-math block>
+    \hat{\varepsilon} = \frac{1}{C}\sum_{a}^{\mathcal{A}}\bar{P}_{a}, \quad \text{for} \,\, a \neq a_{max}
+  </d-math>
+
+  <p>Where $$C$$ is the normalizing constant (sum of all $$\bar{P}_{a}$$)</p>
+
+  <a class="marker" href="#section-4" id="section-4"></a>
+  <h2>Applying Bayes' Rule</h2>
+
+  <p style="color: red">
+
+  </p>
+
+  <p>
+    We will now put the theory into practice! By inspecting the learning process, we can see that there is
+    a key challenge in applying Bayes' rule to Q-Learning.
+    Specifically, we focus on diverging Q-value distributions, which can cause agents to become confident in suboptimal policies.
+  </p>
+
+  <a class="marker" href="#section-4.1" id="section-4.1"></a>
+  <h3>Game Setup</h3>
+
+  <p>
+    As researchers in the financial markets, we designed the environment after a sub-class of problems that share similar
+    characteristics. These problems are characterized by
+    environments that give a reward at every timestep, where the mean and variance of the rewards depends on the state
+    that the agent is in
+    <d-footnote>
+      This is equivalent to the return received for any trade/investment, where the expected return and volatility
+      depends on the market regime.
+    </d-footnote>. To achieve this, we use a modified version of the Cliff World environment
+    <d-cite key="demin2010cliff"></d-cite>:
+
+  <div class="overflow">
+    <div class="row">
+      <figure>
+        <div id="gameOutline"></div>
+        <div id="gameOutlineLegend"></div>
+      </figure>
+    </div>
+  </div>
+  <figure>
+    <figcaption>
+      From any state in the grid the agent can take one of the following actions: $$[\text{Left, Right, Up, Down}]$$.
+      If the agent is on the outer edge of the grid and moves towards the edge, then the agent stays in the same place (imagine
+      running into a wall).
+    </figcaption>
+  </figure>
+
+
+  <a class="marker" href="#section-4.2" id="section-4.2"></a>
+  <h3>Analyzing the Learned Distributions</h3>
+
+  <p>
+    Below we show the Q-value distributions learned by our agent for each state-action pair.
+    We use an arrow to highlight the learned policy.
+  </p>
+
+  <figure>
+    <div id="containerGridDistributions"></div>
+    <figcaption>
+      <div class="demo-tip">
+        <img class="pointer" src="assets/pointer.svg">
+        <div class="hint">
+          Hover your mouse above the positions on the grid to see the Q-value distributions for each state-action pair.
+          The distributions are colored with a red-white-green gradient (ranging from -50 to 50).
+        </div>
+      </div>
+    </figcaption>
+  </figure>
+
+  <p>
+
+    By hovering our mouse over the path, we realize that the agent does not learn the "true" Q-value distribution
+    for all state-action pairs. Only the pairs that guide it through the path seem to be accurate.
+    This happens because the agent stops exploring once it <b><i>thinks</i></b> it has found the optimal policy
+    <d-footnote>
+      Even if agents do not learn the true Q-values, they can still learn the optimal policy if
+      they learn the relative value of actions in a state.
+      The relative value of actions is referred to as the advantage <d-cite key = "baird1993advantage"></d-cite>.
+    </d-footnote>.
+    Below we see that learning plateaus once exploration stops:
+  </p>
+
+  <aside>
+    If the agent does not revisit a state, then the Q-values at that state cannot be updated.
+  </aside>
+
+  <figure class="overflow" id="figureLearningProgress">
+  <div>
+    <div class="row learning-progress-container">
+        <div class="learning-progress" id="gridLearningProgress"></div>
+        <div class="actions-arrows-container">
+          <div class="learning-progress" id="actionsLearningProgress"></div>
+        </div>
+        <div class="learning-progress" id="chartLearningProgress"></div>
+    </div>
+  </div>
+  </figure>
+
+  <figure>
+    <figcaption>
+      <div class="demo-tip">
+        <img class="pointer" src="assets/pointer.svg">
+        <div class="hint">
+          Click on a state (square on grid) and action (arrow) to see the learning progress for that state-action pair.
+        </div>
+      </div>
+    </figcaption>
+  </figure>
+
+  <p>
+    One thing that always happens when using Bayes' rule (after enough episodes) is that the agent finds its way to the goal without falling
+    off the cliff. However, it does not always find the optimal path.
+    Below we color states according to how often they are visited during training - darker shades represent higher visitation rates.
+    We see that state visitations outside of the goal trajectory are almost non-existent because the agent becomes anchored
+    to the path that leads it to the goal.
+  </p>
+
+  <div class="overflow">
+    <br>
+    <div class="row">
+      <div class="state-visitations" id="optimalStateVisitations"></div>
+      <div class="state-visitations" id="suboptimalStateVisitations"></div>
+    </div>
+  </div>
+
+  <p>
+    Let's dig into the exact state that is responsible for the agent either finding the optimal policy or not. We will call this
+    the "critical state" and highlight it with a star in the figure above.
+    When analyzing what happens during training, we see that the cause of
+    the problem is that the Q-value distributions diverge. We will use Q-Value sampling for the following analysis.
+    Since the agent explores via Q-Value sampling, once the
+    density of the joint distribution approaches 0, the agent will always sample a higher
+    Q-value from one distribution relative to the other. Thus, it will never take the action from the  Q-value distribution
+    with a lower mean.
+    Let's look at a visual illustration of this concept:
+  </p>
+
+  <aside>
+    Although the analysis uses Q-Value sampling as the exploration policy, the same logic applies to Bayes-UCB and Myopic-VPI
+    <d-footnote>
+      Any exploration policy that relies on the intersection of two (or more) distributions will suffer from Q-value
+      distributions diverging before the optimal policy is found.
+    </d-footnote>.
+  </aside>
+
+  <div class="exploration-exploitation" id="distributionsExplorationExploitation"></div>
+
+  <aside>
+    We are only going to toggle $$\mu$$ for this example.
+  </aside>
+
+  <div class="probability-bar exploration-exploitation" id="probAboveExplorationExploitation"></div>
+  <div class="probability-bar exploration-exploitation" id="probJointExplorationExploitation"></div>
+
+  <label for="barExplorationExploitation" style="margin-top:10px">$$\mu$$ = <span></span></label><br>
+  <div class="middle">
+    <div class="slider-container">
+      <span id="barExplorationExploitation" class="bar"><span id="fillExplorationExploitation" class="fill"></span></span>
+      <input type="range" id="sliderExplorationExploitation" class="slider" min="-10" max="10" value="-3" step="0.05">
+    </div>
+  </div>
+
+  <p>
+    We will represent the distribution that we toggle as $$x_1$$ and the static distribution as $$x_2$$.
+    The first bar represents $$Pr(x_1 \gt x_2)$$ and the second bar represents $$\hat{\varepsilon}$$. When visualized,
+    it is clear that $$\hat{\varepsilon}$$ is just the overlapping area under the two distributions
+    <d-footnote>
+      The agent only explores when there is a possibility of sampling a higher value from either distribution, which is only the
+      case when there is a decent amount of overlap between the distributions.
+    </d-footnote>.
+    Let us now inspect the learning progress at the critical state:
+  </p>
+
+  <div class="radio-button-container">
+    <input type="radio" class="option-input radio" name="inflection-point" value="optimal" checked> Optimal
+    <input type="radio" class="option-input radio" name="inflection-point" value="suboptimal"> Suboptimal
+  </div>
+
+  <div class="row">
+      <div class="column" id="distributionsInflectionPoint"></div>
+      <div class="column" id="progressInflectionPoint"></div>
+      <div class="plot-legend" id="inflectionLegend"></div>
+  </div>
+
+  <aside>
+    Each shade around the Q-value mean corresponds to a standard deviation.
+  </aside>
+
+  <div class="inflection-point-analysis probability-bar" id="probAboveInflectionPoint"></div>
+  <div class="inflection-point-analysis probability-bar" id="probJointInflectionPoint"></div>
+
+  <label for="barInflectionEpisode" style="margin-top:10px">Episode = <span></span></label><br>
+  <div class="middle">
+    <div class="slider-container">
+      <span id="barInflectionEpisode" class="bar"><span id="fillInflectionEpisode" class="fill"></span></span>
+      <input type="range" id="sliderInflectionEpisode" class="slider" min="1" max="500" value="1" step="1">
+    </div>
+  </div>
+
+  <p>
+    Whether the agent finds the optimal policy or the suboptimal policy, we notice that exploration stops as soon as the
+    Q-values diverge far enough. This can be seen as the training progress
+    flat lines for the action with a lower mean.
+    Therefore, a risk in applying Bayes' rule to Q-learning is that the agent does not
+    explore the optimal path before the distributions diverge.
+  </p>
+
+  <a class="marker" href="#section-4.3" id="section-4.3"></a>
+  <h3>Impact of Policy on Perception</h3>
+
+  <p>
+    We will use the agent that learned the suboptimal policy for a quick experiment. At the critical state, we know that
+    the Q-value distributions diverge in such a way that the agent will never sample a Q-value for $$\text{Down}$$ that is
+    higher than $$\text{Right}$$, and
+    thus it will never move down. However, what if we force the agent to move down and see what it does from that point on?
+    Test it out below:
+  </p>
+
+  <figure>
+    <div id="containerInflectionPointPaths"></div>
+    <figcaption>
+      <div class="demo-tip">
+        <img class="pointer" src="assets/pointer.svg">
+        <div class="hint">
+          Click on one of the arrows (actions) and see the path the agent goes on after it takes that action. We run 10 paths
+          each run.
+        </div>
+      </div>
+    </figcaption>
+  </figure>
+
+  <p>
+    By forcing the agent to move down, we realize that there are times when it goes around the danger zone to the goal.
+    We will explain what is happening with an analogy:
+  </p>
+
+  <p style="padding-left: 40px; padding-right: 40px; font-size: 0.95em; text-align: justify">
+    Imagine getting into a car accident at intersection X when you are learning to drive.
+    You will associate that intersection with a bad outcome (low Q-value) and take a detour going forward.
+    Overtime you will get better at driving (policy improvement) and if you accidentally end up at intersection X,
+    you will do just fine. The problem is that you never revisit intersection X because it is hard to decouple the bad
+    memory from the fact that you were a bad driver at the time.
+  </p>
+
+  <p>
+    This problem is highlighted in one of David Silver's lectures, where he states that although Thompson
+    sampling (Q-value sampling in our case) is great for bandit problems, it does not deal with sequential information well in
+    the full MDP case <d-cite key="silver2015exploration"></d-cite>. It
+    only evaluates the Q-value distribution using the current policy and does not take into account the fact that the policy
+    can improve. We will see the consequence of this in the next section.
+  </p>
+
+  <a class="marker" href="#discussion" id="discussion"></a>
+  <h2>Discussion</h2>
+
+  <p>
+    To evaluate the <a href="#section-3.1">exploration policies</a> previously discussed, we compare the cumulative regret for each approach
+    in our game environment.
+    Regret is the difference between the return obtained from following the optimal policy compared to the actual policy
+    that the agent followed
+    <d-footnote>
+      If the agent follows the optimal policy, then it will have a regret of $$0$$.
+    </d-footnote><d-cite key = "berry1985regret"></d-cite>.
+  </p>
+
+  <aside>
+    Regret accumulates for each episode that the agent follows a suboptimal policy.
+  </aside>
+
+  <div class="radio-button-container" style="padding-bottom: 15px">
+    <input type="radio" class="option-input radio" name="regret" value="median" checked> Median
+    <input type="radio" class="option-input radio" name="regret" value="range"> Median with Range
+  </div>
+
+  <div class="row">
+    <div id="RegretContainer">
+        <div id="Regret"></div>
+    </div>
+    <div class="plot-legend" id="regretLegend"></div>
+  </div>
+  <figure>
+    <figcaption style="text-align: center">
+      <div class="demo-tip">
+        <img class="pointer" src="assets/pointer.svg">
+        <div class="hint">
+          Click on the legend elements to add/remove them from the graph. The range was generated with 50 initializations.
+          Play around with the hyperparameters for any of the benchmarks in the Google Colab notebook.
+        </div>
+      </div>
+    </figcaption>
+    <a style="width: max-content; margin: auto" href="https://colab.research.google.com/github/brandinho/Baysian-Q-Learning/blob/master/Regret.ipynb" class="colab-root">
+      Experiment in a <span class="colab-span">Notebook</span>
+    </a>
+  </figure>
+
+  <p>
+    Although experiments in our game environment suggest that Bayesian exploration policies explore more efficiently
+    <b>on average</b>, there seems to be a wider range of outcomes.
+    Additionally, given our analysis on diverging Q-value distributions, we know that there are times when Bayesian agents can
+    become anchored to suboptimal policies.
+    When this happens, the cumulative regret looks like a diagonal line $$\nearrow$$,
+    which can be seen protruding from the range of outcomes.
+  </p>
+
+  <p>
+    In conclusion, while Bayesian Q-Learning sounds great theoretically, it can be challenging to apply in actual
+    environments. This challenge only gets harder as we move to more realistic environments with larger
+    state-action spaces. Nonetheless, we believe modelling distributions over value functions is an exciting area of
+    research and has the ability to achieve state-of-the-art (SOTA) results, as demonstrated in some related works on distributional
+    RL.
+  </p>
+
+  <a class="marker" href="#section-5" id="section-5"></a>
+  <h2>Related Work</h2>
+
+  <p>
+    Although we focus on modelling Q-value distributions in a tabular setting,
+    a lot of exciting research has gone into using function approximations to model these distributions
+    <d-cite key="tamar2016functionvariance"></d-cite>. More recently, a series of
+    distributional RL papers using deep neural networks have emerged achieving SOTA results in Atari-57.
+    The first of such papers introduced the categorical DQN (C51) architecture as a way to discretize Q-values into bins and
+    then assign a probability to each bin <d-cite key="bellemare2017distrl"></d-cite>.
+  </p>
+
+  <p>
+    One of the weaknesses in C51 is the discretization of Q-values as well as the fact that you have to specify
+    a minimum and maximum value. To overcome these weaknesses, work has been done to "transpose" the problem with
+    quantile regression <d-cite key="dabney2018quantilerl"></d-cite>.
+    With C51 they adjust the probability for each Q-value range, but with quantile regression they adjust the Q-values for each
+    probability range
+    <d-footnote>
+      A probability range is more formally known as a quantile - hence the name "quantile regression".
+    </d-footnote>.
+    Following this research, the implicit quantile network (IQN) was introduced to learn the full quantile function
+    as opposed to learning a discrete set of quantiles <d-cite key="dabney2018implicitquantilerl"></d-cite>.
+    The current SOTA improves on IQN by fully parameterizing the quantile function; both the quantile fractions
+    and the quantile values are parameterized <d-cite key="yang2019fpq"></d-cite>.
+  </p>
+
+
+  <p>
+    Others specifically focus on modelling value distributions for efficient exploration
+    <d-cite key="mavrin2019efficientexploration, nikolov2019ids"></d-cite>.
+    Osband et al. also focus on efficient exploration, but in contrast to other distributional RL approaches,
+    they use randomized value functions to approximately sample from the posterior
+    <d-cite key="osband2018randomizedprior,osband2019deepexploration"></d-cite>.
+    Another interesting approach for exploration uses the uncertainty Bellman equation to propagate uncertainty
+    across multiple timesteps <d-cite key="odonoghue2018uncertaintybellman"></d-cite>.
+  </p>
+
+</d-article>
+
+<d-appendix>
+
+  <h3>Acknowledgements</h3>
+  <p>
+    I would like to thank Wei Xie, Sylvie Shang Shi, and Paola Soto for their constructive criticism on the flow and
+    clarity of the paper. I would also like to thank all of the reviewers for their comments, which greatly improved the quality
+    and integrity of the paper.
+    Lastly, I would like to thank all of the previous authors on Distill because their amazing papers inspired me
+    to learn javascript and create this paper.
+  </p>
+
+  <d-bibliography src="bibliography.bib"></d-bibliography>
+
+  <h3 id="citation" style = "order: 99">Citation</h3>
+  <div class="citation-container" style = "order: 99">
+    <p style="margin-bottom: 0">For attribution in academic contexts, please cite this work as</p>
+    <pre class="citation short">Da Silva, "A Bayesian Perspective on Q-Learning", 2020.</pre>
+    <p style="margin-bottom: 0">BibTeX citation</p>
+    <pre class="citation long">@article{dasilva2020bayesianqlearning,
+    author = {Da Silva, Brandon},
+    title = {A Bayesian Perspective on Q-Learning},
+    year = {2020},
+    note = {brandinho.github.io},
+    }</pre>
+  </div>
+</d-appendix>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script src="js/slider.js"></script>
+<script src="js/hider.js"></script>
+<script src="js/bundle.js"></script>
+</body>

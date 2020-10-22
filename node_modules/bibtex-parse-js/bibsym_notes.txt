@@ -1,0 +1,177 @@
+\‘ `
+\’ ´
+\^ ˆ
+\~ ˜
+\" ¨
+\H ˝
+\r ˚
+\v ˇ
+\u ˘
+\t \t
+\= ¯
+\. ˙
+\b ¯
+\c ¸
+\d .
+\k ˛
+\AE Æ
+\DH Ð
+\DJ Ð
+\L Ł
+\NG Ŋ
+\OE Œ
+\O Ø
+\SS ß
+\TH Þ
+\ae æ
+\dh ð
+\dj đ
+\guillemotleft «
+\guillemotright »
+\guilsinglleft ‹ 
+\guilsinglright › 
+\i ı
+\j 
+\l ł
+\ng ŋ
+\oe œ
+\o ø
+\quotedblbase „
+\quotesinglbase ‚
+\ss ß
+\textasciicircum ^
+\textasciitilde ~
+\textbackslash  \\
+\textbar |
+\textbraceleft OT1,T1 {
+\textbraceright OT1,T1 }
+\textcompwordmark OT1,T1 (invisible)
+\textdollar OT1,T1 $
+\textemdash OT1,T1 —
+\textendash OT1,T1 –
+\textexclamdown OT1,T1 ¡
+\textgreater OT1,T1 >
+\textless OT1,T1 <
+\textquestiondown OT1,T1 ¿
+\textquotedbl T1 "
+\textquotedblleft OT1,T1 “
+\textquotedblright OT1,T1 ”
+\textquoteleft OT1,T1 ‘
+\textquoteright OT1,T1 ’
+\textregistered OT1,T1 ®
+\textsection OT1,T1 §
+\textsterling OT1,T1 £
+\texttrademark OT1,T1 ™
+\textunderscore OT1,T1 _
+\textvisiblespace OT1,T1 ␣
+\th T1 þ
+
+
+
+
+"`A": "À"
+"`E": "È"
+"`I": "Ì"
+"`O": "Ò"
+"`U": "Ù"
+"`a": "à"
+"`e": "è"
+"`i": "ì"
+"`o": "ò"
+"`u": "ù"
+"\'A": "Á"
+"\'E": "É"
+"\'I": "Í"
+"\'O": "Ó"
+"\'U": "Ú"
+"\'Y": "Ý"
+"\'a": "á"
+"\'e": "é"
+"\'i": "í"
+"\'o": "ó"
+"\'u": "ú"
+"\'y": "ý"
+"\",A": "Ä"
+"\",E": "Ë"
+"\",I": "Ï"
+"\",O": "Ö"
+"\",U": "Ü"
+"\",a": "ä"
+"\",e": "ë"
+"\",i": "ï"
+"\",o": "ö"
+"\",u": "ü"
+"~A": "Ã"
+"~N": "Ñ"
+"~O": "Õ"
+"~a": "ã"
+"~n": "ñ"
+"~o": "õ"
+"rU": "Ů"
+"ru": "ů"
+"vC": "Č"
+"vD": "Ď"
+"vE": "Ě"
+"vN": "Ň"
+"vR": "Ř"
+"vS": "Š"
+"vT": "Ť"
+"vZ": "Ž"
+"vc": "č"
+"vd": "ď"
+"ve": "ě"
+"vn": "ň"
+"vr": "ř"
+"vs": "š"
+"vt": "ť"
+"vz": "ž"
+"#": "#"
+"$": "$"
+"%": "%"
+"&": "&"
+"\\": "\\"
+"^": "^"
+"_": "_"
+"{": "{"
+"}": "}"
+"~": "~"
+"\"": "\""
+"\'": "’"
+"`": "‘"
+"AA": "Å"
+"AE": "Æ"
+"O": "Ø"
+"aa": "å"
+"ae": "æ"
+"o": "ø"
+"ss": "ß"
+"textcopyright": "©"
+"textellipsis": "…"
+"textemdash": "—"
+"textendash": "–"
+"textregistered": "®"
+"texttrademark": "™"
+"alpha": "α"
+"beta": "β"
+"gamma": "γ"
+"delta": "δ"
+"epsilon": "ε"
+"zeta": "ζ"
+"eta": "η"
+"theta": "θ"
+"iota": "ι"
+"kappa": "κ"
+"lambda": "λ"
+"mu": "μ"
+"nu": "ν"
+"xi": "ξ"
+"omicron": "ο"
+"pi": "π"
+"rho": "ρ"
+"sigma": "ς"
+"tau": "σ"
+"upsilon": "τ"
+"phi": "υ"
+"chi": "φ"
+"psi": "χ"
+"omega": "ψ"

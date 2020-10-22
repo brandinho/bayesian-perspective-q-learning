@@ -1,0 +1,33 @@
+##
+# Host Database
+#
+# localhost is used to configure the loopback interface
+# when the system is booting.  Do not change this entry.
+##
+127.0.0.1	localhost 
+127.0.0.1	MacBook-Pro.local 
+127.0.0.1	rcpeters-1.asuscomm.com
+127.0.0.1	communities.locoalhost
+127.0.0.1	communities.rcpeters-1.asuscomm.com
+127.0.0.1	members.localhost
+127.0.0.1	members.rcpeters-1.asuscomm.com
+127.0.0.1	api.localhost
+127.0.0.1	api.rcpeters-1.asuscomm.com
+127.0.0.1	www.localhost
+127.0.0.1	www.rcpeters-1.asuscomm.com
+127.0.0.1	pub.localhost
+127.0.0.1	pub.rcpeters-1.asuscomm.com
+127.0.0.1	orcid-feed.local 
+255.255.255.255	broadcasthost
+::1             localhost 
+fe80::1%lo0	localhost
+emilystyle.com 104.219.55.237
+
+#23.253.104.167 sandbox.orcid.org             
+#166.78.46.249    qa.orcid.org
+#54.76.180.245 datacite.labs.orcid-eu.org
+
+208.78.98.21 xxs.io
+#174.143.185.160 orcid.org test.orcid.org www.test.orcid.org
+#66.216.68.112 orcid.org test.orcid.org www.test.orcid.org
+

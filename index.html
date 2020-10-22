@@ -121,14 +121,14 @@
       Examples of such domains include autonomous vehicles, healthcare, and the financial markets.
     </d-footnote>. Research in risk-aware reinforcement learning has emerged to address such problems
     <d-cite key="morimura2010risksensitive,chow2018riskconstrainedrl"></d-cite>.
-    However, another important application of uncertainty, which we focus on in this paper, is efficient exploration
+    However, another important application of uncertainty, which we focus on in this article, is efficient exploration
     of the state-action space.
   </p>
 
   <h2>Introduction</h2>
 
   <p>
-    The purpose of this paper is to clearly explain Q-Learning from the perspective of a Bayesian.
+    The purpose of this article is to clearly explain Q-Learning from the perspective of a Bayesian.
     As such, we use a small grid world and a simple extension of tabular Q-Learning to illustrate the fundamentals.
     Specifically, we show how to extend the deterministic Q-Learning algorithm to model
     the variance of Q-values with Bayes' rule. We focus on a sub-class of problems where it is reasonable to assume that Q-values
@@ -138,7 +138,7 @@
   </p>
 
   <p>
-    This paper is largely based on the seminal work from Dearden et al. <d-cite key="dearden1998bayesianqlearning"></d-cite>.
+    This article is largely based on the seminal work from Dearden et al. <d-cite key="dearden1998bayesianqlearning"></d-cite>.
     Specifically, we expand on the assumption that Q-values are normally distributed and evaluate various Bayesian exploration
     policies. One key distinction is that we model $$\mu$$ and $$\sigma^2$$, while the
     authors of the original Bayesian Q-Learning paper model a distribution over these parameters. This allows them to quantify
@@ -633,7 +633,7 @@
 
   <p>
     There are many ways we can use a distribution over Q-values to explore as an alternative to the $$\varepsilon$$-greedy
-    approach. Below we outline a few, and evaluate each in the <a href="#discussion">final section</a> of this paper.
+    approach. Below we outline a few, and evaluate each in the <a href="#discussion">final section</a> of this article.
   </p>
 
   <ul>
@@ -1173,7 +1173,7 @@
   <p>
     I would like to thank Wei Xie, Sylvie Shang Shi, and Paola Soto for their constructive criticism on the flow and
     clarity of this article. I would like to thank all of the authors on Distill because their amazing papers inspired me
-    to learn javascript and create this paper. Lastly, I would like to thank the Distill team for open sourcing their
+    to learn javascript and create this article. Lastly, I would like to thank the Distill team for open sourcing their
     <a href="https://distill.pub/">distill.pub</a> technology which greatly improved the aesthetics of this article.
   </p>
 

@@ -8,7 +8,7 @@ This paper is focuses on clearly explaining Bayesian Q-Learning; we provide conc
 
 `npm run serve` - starts a live reload dev server.
 
-`npm run build` - builds everything with webpack and minification to `public` directory.
+`npm run build` - builds everything with webpack and minification.
 
 `npm run static-serve` - starts a static server to test the build step.
 

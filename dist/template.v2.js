@@ -7,31 +7,21 @@
   doi = {${e.doi}}
 }`}function y(e){return`
   <div class="byline grid">
-    <div class="authors-affiliations grid">
+    <div>
       <h3>Authors</h3>
-      <h3>Affiliations</h3>
       ${e.authors.map((e)=>`
         <p class="author">
           ${e.personalURL?`
             <a class="name" href="${e.personalURL}">${e.name}</a>`:`
             <span class="name">${e.name}</span>`}
         </p>
-        <p class="affiliation">
-        ${e.affiliations.map((e)=>e.url?`<a class="affiliation" href="${e.url}">${e.name}</a>`:`<span class="affiliation">${e.name}</span>`).join(', ')}
-        </p>
-      `).join('')}
+      `)}
     </div>
     <div>
       <h3>Published</h3>
       ${e.publishedDate?`
         <p>${e.publishedMonth} ${e.publishedDay}, ${e.publishedYear}</p> `:`
         <p><em>Not published yet.</em></p>`}
-    </div>
-    <div>
-      <h3>DOI</h3>
-      ${e.doi?`
-        <p><a href="https://doi.org/${e.doi}">${e.doi}</a></p>`:`
-        <p><em>No DOI yet.</em></p>`}
     </div>
   </div>
 `}function x(e,t,n=document){if(0<t.size){e.style.display='';let i=e.querySelector('.references');if(i)i.innerHTML='';else{const t=n.createElement('style');t.innerHTML=la,e.appendChild(t);const a=n.createElement('h3');a.id='references',a.textContent='References',e.appendChild(a),i=n.createElement('ol'),i.id='references-list',i.className='references',e.appendChild(i)}for(const[e,a]of t){const t=n.createElement('li');t.id=e,t.innerHTML=o(a),i.appendChild(t)}}else e.style.display='none'}function k(e,t){let n=`

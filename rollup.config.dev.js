@@ -32,8 +32,8 @@ const transformsConfig = {
 };
 
 const figuresConfig = {
-  input: 'public/js/allGraphs.js',
-  output: [{ format: 'umd', name: 'dl', file: 'public/js/bundle.js' }],
+  input: 'js/allGraphs.js',
+  output: [{ format: 'umd', name: 'dl', file: 'js/bundle.js' }],
 };
 
 const defaultConfig = {
